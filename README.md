@@ -1,35 +1,113 @@
+# IVR Solutions – WSS Telephony Bridge (Unified Documentation)
 
-# WebSocket Message Specification for https://www.ivrsolutions.in
+for https://www.ivrsolutions.in
 
-This document is the **authoritative specification** for WebSocket-based audio streaming,
-AI session control, and call lifecycle handling between the telephony platform and AI clients.
+This document defines **one unified interface** for connecting **telephony calls (inbound & outbound)** to **any WebSocket Secure (WSS) client** such as AI voice bots, speech engines, or custom real‑time systems.
 
----
-
-## 1. Architecture Overview
-
-Each inbound or outbound call establishes **one WebSocket session**.
-
-**Message directions:**
-- **Platform → AI**: Events (media, metadata, lifecycle)
-- **AI → Platform**: Commands (transfer, hangup, control)
-
-**High-level flow:**
-1. Call created (`call.initiated`)
-2. WebSocket connected
-3. `start` event sent with call metadata
-4. `media` / `dtmf` / `mark` streamed
-5. AI may issue control commands (transfer, hangup)
-6. `stop` event sent
-7. Terminal call event emitted
+IVR Solutions acts as a **real‑time bridge between PSTN/SIP calls and your WebSocket server**.
 
 ---
 
-## PART A — Platform → AI (WebSocket Events)
+## 1. What This Enables
 
-### 2. Connected Event
+* Connect **any WSS endpoint** to live phone calls
+* Stream **real‑time call audio → your WebSocket**
+* Send **audio + commands** back into the live call
+* Support **AI bots, human assist, SIP extensions, IVR flows**
 
-Sent immediately after WebSocket connection is established.
+**One call = one WebSocket session**
+
+---
+
+## 2. High‑Level Architecture
+
+```
+Caller / PSTN
+      │
+      ▼
+IVR Solutions (SIP  / Media Engine)
+      │   (WSS)
+      ▼
+Your WebSocket Server (AI Bot / App / Engine)
+```
+
+---
+
+## 3. How the WSS URL Is Selected
+
+### A. Inbound Calls (DID → CONFIG_API → WSS)
+
+When a caller dials your DID, IVR Solutions calls your **CONFIG_API** to ask how the call should be handled.
+
+#### CONFIG_API Request (IVR → Your Backend)
+
+```json
+{
+  "From": "9876543210",
+  "To": "18001234567",
+  "Direction": "inbound",
+  "FlowId": "default_flow",
+  "SessionId": "1707204900.123",
+  "ServerId": "delhi"
+}
+```
+
+#### CONFIG_API Response (Your Backend → IVR)
+
+```json
+{
+  "url": "wss://your-bot.example.com/voice",
+  "wsHeaders": {
+    "Authorization": "Bearer YOUR_TOKEN"
+  },
+  "audioFormat": {
+    "encoding": "pcm",
+    "sampleRate": 8000
+  }
+}
+```
+
+IVR Solutions will now connect the live call to this WSS endpoint.
+
+---
+
+### B. Outbound Calls (API → WSS)
+
+You can directly initiate a call and attach a WebSocket.
+
+#### POST /calls
+
+```json
+{
+  "from": "7415100898",
+  "callTo": "9876543210",
+  "wsUrl": "wss://your-bot.example.com/voice",
+  "wsHeaders": {
+    "Authorization": "Bearer YOUR_TOKEN"
+  },
+  "audioFormat": {
+    "encoding": "pcm",
+    "sampleRate": 8000
+  }
+}
+```
+
+---
+
+## 4. WebSocket Session Lifecycle
+
+1. IVR Solutions opens a WSS connection
+2. `connected` event is sent
+3. `start` event with call metadata
+4. Continuous `media` (audio) streaming
+5. Optional `dtmf`, `mark`, `clear` events
+6. `stop` event when call ends
+
+---
+
+## 5. Events: IVR Solutions → Your WebSocket
+
+### 5.1 Connected
 
 ```json
 { "event": "connected" }
@@ -37,20 +115,16 @@ Sent immediately after WebSocket connection is established.
 
 ---
 
-### 3. Start Event
-
-Sent **once per call**. Contains call identity, caller/DID, and media format.
-
-#### 3.1 Default Platform Payload
+### 5.2 Start
 
 ```json
 {
   "event": "start",
   "sequence_number": 1,
-  "stream_sid": "<stream sid>",
+  "stream_sid": "1707204900.123",
   "start": {
-    "stream_sid": "<channel-id>",
-    "call_sid": "<call-id>",
+    "stream_sid": "1707204900.123",
+    "call_sid": "call_1707204900000_a1b2c3",
     "from": "9876543210",
     "to": "18001234567",
     "media_format": {
@@ -61,193 +135,112 @@ Sent **once per call**. Contains call identity, caller/DID, and media format.
 }
 ```
 
-**Fields**
-- `from` — Caller number (ANI)
-- `to` — Dialed number (DID)
-- `call_sid` — Unique call identifier
-- `stream_sid` — WebSocket stream identifier
-
-#### 3.2 Custom sessionStartMessage
-
-```json
-{
-  "sessionStartMessage": {
-    "type": "session.start",
-    "from": "{{caller}}",
-    "to": "{{did}}",
-    "sessionId": "{{sessionId}}"
-  }
-}
-```
-
-Available variables: `{{caller}}`, `{{did}}`, `{{sessionId}}`
-
 ---
 
-### 4. Media Event
+### 5.3 Media (Audio)
 
-Carries raw PCM audio chunks.
+Audio is streamed as **base64‑encoded PCM (16‑bit, mono)**.
 
 ```json
 {
   "event": "media",
   "sequence_number": 3,
-  "stream_sid": "<stream sid>",
+  "stream_sid": "1707204900.123",
   "media": {
     "chunk": 2,
     "timestamp": "10",
-    "payload": "<base64 audio>"
+    "payload": "<base64-audio>"
   }
 }
 ```
 
-**Audio Format**
-- Encoding: raw/slin (16-bit PCM, little-endian)
-- Sample rate: 8000 Hz
-- Channels: Mono
-
 ---
 
-### 5. DTMF Event
+### 5.4 DTMF
 
 ```json
 {
   "event": "dtmf",
-  "sequence_number": 1,
-  "stream_sid": "<stream sid>",
+  "sequence_number": 5,
+  "stream_sid": "1707204900.123",
   "dtmf": {
-    "duration": "<ms>",
-    "digit": "<digit>"
+    "digit": "1",
+    "duration": "120"
   }
 }
 ```
 
 ---
 
-### 6. Mark Event
-
-Used to track playback completion.
+### 5.5 Mark (Playback Tracking)
 
 ```json
 {
   "event": "mark",
   "sequence_number": 15,
-  "stream_sid": "<stream sid>",
-  "mark": { "name": "<label>" }
+  "stream_sid": "1707204900.123",
+  "mark": { "name": "intro_complete" }
 }
 ```
 
 ---
 
-### 7. Clear Event
-
-Clears queued audio (barge-in support).
+### 5.6 Clear (Barge‑in / Flush Audio)
 
 ```json
-{
-  "event": "clear",
-  "stream_sid": "<stream sid>"
-}
+{ "event": "clear", "stream_sid": "1707204900.123" }
 ```
 
 ---
 
-### 8. Stop Event
-
-Indicates end of WebSocket stream.
+### 5.7 Stop
 
 ```json
 {
   "event": "stop",
-  "sequence_number": 10,
-  "stream_sid": "<stream sid>",
+  "sequence_number": 42,
+  "stream_sid": "1707204900.123",
   "stop": {
-    "call_sid": "<call-id>",
-    "account_sid": "<account-id>",
-    "reason": "stopped | callended"
+    "call_sid": "call_1707204900000_a1b2c3",
+    "reason": "callended"
   }
 }
 ```
 
 ---
 
-## PART B — AI → Platform (Session Control Commands)
+## 6. Messages: Your WebSocket → IVR Solutions
 
-### 9. Call Transfer — WebSocket API
+### 6.1 Send Audio to Caller
 
-During an active call, the AI may issue **exactly one transfer command**.
-
-#### Transfer Types
-
-| # | Type | Description | Message |
-|---|------|------------|--------|
-| 1 | External Phone | Mobile / PSTN | `session.transfer` |
-| 2 | Another WebSocket (Direct) | Zero interruption | `session.transfer_ws` |
-| 3 | Another WebSocket (Flow) | Brief re-setup | `session.flow_transfer` |
-| 4 | SIP Extension | Agent phone | `session.transfer_extension` |
-| 5 | IVR Flow | Queue / Voicemail | `session.flow_transfer` |
-
----
-
-### 9.1 Transfer to External Phone
+You may send audio as **binary** or **JSON‑wrapped base64**.
 
 ```json
 {
-  "type": "session.transfer",
-  "destination": "9876543210"
+  "type": "response.audio.delta",
+  "delta": "<base64-audio>"
 }
 ```
 
 ---
 
-### 9.2 Transfer to Another WebSocket (Direct)
-
-```json
-{
-  "type": "session.transfer_ws",
-  "url": "wss://new-bot.example.com/voice"
-}
-```
-
----
-
-### 9.3 Transfer via Flow
-
-```json
-{
-  "type": "session.flow_transfer",
-  "flow_id": "sales_ai_flow"
-}
-```
-
----
-
-### 9.4 Transfer to SIP Extension
-
-```json
-{
-  "type": "session.transfer_extension",
-  "extension": "101"
-}
-```
-
----
-
-### 10. Other Session Commands
-
-#### Hangup
+### 6.2 Hangup Call
 
 ```json
 { "type": "session.hangup" }
 ```
 
-#### Send DTMF
+---
+
+### 6.3 Send DTMF
 
 ```json
 { "type": "session.dtmf", "dtmf": "123#" }
 ```
 
-#### Clear Audio
+---
+
+### 6.4 Clear Queued Audio
 
 ```json
 { "type": "audio.clear" }
@@ -255,21 +248,69 @@ During an active call, the AI may issue **exactly one transfer command**.
 
 ---
 
-## PART C — Call Lifecycle Events
+## 7. Call Transfers (Bot‑Controlled)
 
-| Event | Meaning |
-|------|--------|
-| call.initiated | Outbound call accepted |
-| call.ringing | Destination ringing |
-| call.in-progress | Call answered |
-| call.completed | Normal hangup |
-| call.busy | SIP 17 / 21 |
-| call.no-answer | SIP 18 / 19 |
-| call.failed | Network / carrier failure |
-| call.canceled | Canceled before answer |
+### Transfer to External Number
 
-**Rules**
-- One terminal event per call
-- Transfer ends AI session immediately
-- Caller ID preserved
-- Recording continues across transfers
+```json
+{ "type": "session.transfer", "destination": "9876543210" }
+```
+
+### Transfer to Another WSS Bot
+
+```json
+{ "type": "session.transfer_ws", "url": "wss://new-bot.example.com/voice" }
+```
+
+### Transfer to IVR Flow / Queue
+
+```json
+{ "type": "session.flow_transfer", "flow_id": "sales_flow" }
+```
+
+### Transfer to SIP Extension
+
+```json
+{ "type": "session.transfer_extension", "extension": "101" }
+```
+
+---
+
+## 8. Call Status Callbacks (Optional)
+
+IVR Solutions can POST lifecycle updates to your server:
+
+* `call.initiated`
+* `call.ringing`
+* `call.in-progress`
+* `call.completed`
+* `call.failed`
+* `call.busy`
+* `call.no-answer`
+
+Retries: **up to 5 attempts with exponential backoff**.
+
+---
+
+## 9. Audio Format & Custom Protocol Mapping
+
+You can adapt IVR Solutions to **any WebSocket schema** (OpenAI Realtime, custom STT/TTS engines, etc.) using:
+
+* `messageType`: `binary` or `json`
+* `inputTemplate`
+* `outputMessageType`
+* `outputAudioPath`
+* custom `sessionStartMessage`
+
+This makes IVR Solutions a **universal telephony ↔ WebSocket adapter**.
+
+---
+
+## 10. Summary
+
+* Any phone call ↔ Any WebSocket
+* Real‑time bidirectional audio
+* Bot‑controlled transfers & actions
+* Works for AI, humans, IVR, SIP, or hybrids
+
+This single interface powers **AI voice agents, smart IVRs, call centers, and automation workflows**.
