@@ -1,5 +1,5 @@
 
-# WebSocket Message Specification
+# WebSocket Message Specification for https://www.ivrsolutions.in
 
 This document is the **authoritative specification** for WebSocket-based audio streaming,
 AI session control, and call lifecycle handling between the telephony platform and AI clients.
