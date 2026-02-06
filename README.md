@@ -25,7 +25,7 @@ IVR Solutions acts as a **real‑time bridge between PSTN/SIP calls and your Web
 Caller / PSTN
       │
       ▼
-IVR Solutions (SIP  / Media Engine)
+IVR Solutions (SIP / Media Engine)
       │   (WSS)
       ▼
 Your WebSocket Server (AI Bot / App / Engine)
@@ -250,11 +250,44 @@ You may send audio as **binary** or **JSON‑wrapped base64**.
 
 ## 7. Call Transfers (Bot‑Controlled)
 
-### Transfer to External Number
+IVR Solutions supports **advanced external phone transfers**, including **single**, **multiple simultaneous**, and **multiple sequential** dialing strategies.
+
+---
+
+### Transfer to External Phone (Single)
 
 ```json
 { "type": "session.transfer", "destination": "9876543210" }
 ```
+
+---
+
+### Transfer to External Phone (Multiple – Simultaneous)
+
+All destination numbers ring **at the same time**. The first answered call is connected.
+
+```json
+{
+  "type": "session.transfer",
+  "destination": ["9876543210", "9876543211", "9876543212"]
+}
+```
+
+---
+
+### Transfer to External Phone (Multiple – Sequential)
+
+Numbers are tried **one by one** in the given order until answered.
+
+```json
+{
+  "type": "session.transfer",
+  "destination": ["9876543210", "9876543211", "9876543212"],
+  "strategy": "sequential"
+}
+```
+
+---
 
 ### Transfer to Another WSS Bot
 
@@ -262,11 +295,15 @@ You may send audio as **binary** or **JSON‑wrapped base64**.
 { "type": "session.transfer_ws", "url": "wss://new-bot.example.com/voice" }
 ```
 
+---
+
 ### Transfer to IVR Flow / Queue
 
 ```json
 { "type": "session.flow_transfer", "flow_id": "sales_flow" }
 ```
+
+---
 
 ### Transfer to SIP Extension
 
@@ -275,6 +312,36 @@ You may send audio as **binary** or **JSON‑wrapped base64**.
 ```
 
 ---
+
+### Transfer Message Summary Table
+
+| Transfer Type                        | WebSocket Message                                                                          |
+| ------------------------------------ | ------------------------------------------------------------------------------------------ |
+| External Phone (single)              | `{ "type": "session.transfer", "destination": "9876543210" }`                              |
+| External Phone (multi, simultaneous) | `{ "type": "session.transfer", "destination": ["num1","num2","num3"] }`                    |
+| External Phone (multi, sequential)   | `{ "type": "session.transfer", "destination": ["num1","num2"], "strategy": "sequential" }` |
+
+---
+
+### WebSocket Message Format (Transfer Examples)
+
+```json
+// Single number (works as before)
+{ "type": "session.transfer", "destination": "9876543210" }
+
+// Multiple numbers – simultaneous (all ring at once)
+{
+  "type": "session.transfer",
+  "destination": ["9876543210", "9876543211", "9876543212"]
+}
+
+// Multiple numbers – sequential (try one by one)
+{
+  "type": "session.transfer",
+  "destination": ["9876543210", "9876543211", "9876543212"],
+  "strategy": "sequential"
+}
+```
 
 ## 8. Call Status Callbacks (Optional)
 
