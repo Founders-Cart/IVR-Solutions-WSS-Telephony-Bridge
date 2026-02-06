@@ -257,7 +257,7 @@ IVR Solutions supports **advanced external phone transfers**, including **single
 ### Transfer to External Phone (Single)
 
 ```json
-{ "type": "session.transfer", "destination": "9876543210" }
+{ "type": "session.transfer", "destination": "09876543210" }
 ```
 
 ---
@@ -269,7 +269,7 @@ All destination numbers ring **at the same time**. The first answered call is co
 ```json
 {
   "type": "session.transfer",
-  "destination": ["9876543210", "9876543211", "9876543212"]
+  "destination": ["09876543210", "09876543211", "09876543212"]
 }
 ```
 
@@ -282,7 +282,7 @@ Numbers are tried **one by one** in the given order until answered.
 ```json
 {
   "type": "session.transfer",
-  "destination": ["9876543210", "9876543211", "9876543212"],
+  "destination": ["09876543210", "09876543211", "09876543212"],
   "strategy": "sequential"
 }
 ```
@@ -327,18 +327,18 @@ Numbers are tried **one by one** in the given order until answered.
 
 ```json
 // Single number (works as before)
-{ "type": "session.transfer", "destination": "9876543210" }
+{ "type": "session.transfer", "destination": "09876543210" }
 
 // Multiple numbers – simultaneous (all ring at once)
 {
   "type": "session.transfer",
-  "destination": ["9876543210", "9876543211", "9876543212"]
+  "destination": ["09876543210", "09876543211", "09876543212"]
 }
 
 // Multiple numbers – sequential (try one by one)
 {
   "type": "session.transfer",
-  "destination": ["9876543210", "9876543211", "9876543212"],
+  "destination": ["09876543210", "09876543211", "09876543212"],
   "strategy": "sequential"
 }
 ```
